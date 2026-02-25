@@ -1,3 +1,6 @@
 [submodule "api/account"]
 	path = api/account
 	url = git@github.com:Plataformas-Micro/account.git
+[submodule "api/account-service"]
+	path = api/account-service
+	url = git@github.com:Plataformas-Micro/account-service.git
