@@ -1,9 +1,10 @@
-name: store
+name: store-api
 
 services:
 
   db:
     image: postgres:17
+    hostname: db
     ports:
       - 5432:5432
     volumes:
@@ -17,12 +18,21 @@ services:
     build:
       context: ./account-service
       dockerfile: Dockerfile
-      envairoment:
-        DATABASE_HOST: db
-        DATABASE_PORT: 5432
-        DATABASE_NAME: ${DB_NAME:-store}
-        DATABASE_USER: ${DB_USER:-store}
-        DATABASE_PASSWORD: ${DB_PASSWORD:-devpass}
+    hostname: account
+    ports:
+      - 8080:8080
+    environment:
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_DB: ${DB_NAME:-store}
+      DATABASE_USERNAME: ${DB_USER:-store}
+      DATABASE_PASSWORD: ${DB_PASSWORD:-devpass}
+
+  gateway:
+    build:
+      context: ./gateway-service
+      dockerfile: Dockerfile
+    hostname: gateway
     ports:
       - 8080:8080
     depends_on:
