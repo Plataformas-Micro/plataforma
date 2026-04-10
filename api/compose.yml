@@ -27,14 +27,30 @@ services:
       DATABASE_USERNAME: ${DB_USER:-store}
       DATABASE_PASSWORD: ${DB_PASSWORD:-devpass}
     deploy:
-      replicas: 2
+      replicas: 1
     depends_on:
       - db
+
+  auth:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    hostname: auth
+    deploy:
+      replicas: 1
+    environment:
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-jYCiN0YPiaBP53bGJi/kjfw79HW7xnBu9UPoD/QFFAE=}
+      JWT_HTTP_ONLY: ${JWT_HTTP_ONLY:-true}
+    depends_on:
+      - account
 
   gateway:
     build:
       context: ./gateway-service
       dockerfile: Dockerfile
     hostname: gateway
+    environment:
+      CORS_ALLOWED_CREDENTIALS: ${CORS_ALLOWED_CREDENTIALS:-true}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-*}
     ports:
       - 8080:8080
