@@ -26,3 +26,21 @@ scrape_configs:
         - account:8080
         labels:
           application: 'Account Application'
+
+  - job_name: 'ProductMetrics'
+    metrics_path: '/products/actuator/prometheus'
+    scrape_interval: 1s
+    static_configs:
+      - targets:
+        - product:8080
+        labels:
+          application: 'Product Application'
+
+  - job_name: 'ExchangeMetrics'
+    metrics_path: '/metrics'
+    scrape_interval: 1s
+    static_configs:
+      - targets:
+        - exchange-service:8080
+        labels:
+          application: 'Exchange Application'
