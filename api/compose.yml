@@ -60,6 +60,14 @@ services:
     depends_on:
       - db
 
+  exchange-service:
+    build:
+      context: ./exchange-service
+      dockerfile: Dockerfile
+    hostname: exchange-service
+    deploy:
+      replicas: 1
+
   gateway:
     build:
       context: ./gateway-service
