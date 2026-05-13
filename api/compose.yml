@@ -1,5 +1,5 @@
 
-name: store
+name: store-api
 
 services:
 
@@ -54,3 +54,22 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-*}
     ports:
       - 8080:8080
+
+  prometheus:
+    image: prom/prometheus:latest
+    hostname: prometheus
+    ports:
+      - 9090:9090
+    volumes:
+      - ${SETUP}/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+
+  grafana:
+    image: grafana/grafana:latest
+    hostname: grafana
+    ports:
+      - 3000:3000
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ${SETUP}/grafana:/var/lib/grafana
+      - ${SETUP}/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
