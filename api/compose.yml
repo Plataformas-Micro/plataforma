@@ -44,6 +44,22 @@ services:
     depends_on:
       - account
 
+  product:
+    build:
+      context: ./product-service
+      dockerfile: Dockerfile
+    hostname: product
+    environment:
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_DB: ${DB_NAME:-store}
+      DATABASE_USERNAME: ${DB_USER:-store}
+      DATABASE_PASSWORD: ${DB_PASSWORD:-devpass}
+    deploy:
+      replicas: 1
+    depends_on:
+      - db
+
   gateway:
     build:
       context: ./gateway-service
