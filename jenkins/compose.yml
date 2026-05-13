@@ -35,6 +35,13 @@ services:
             rm awscliv2.zip && \
             rm -rf ./aws
 
+        # Install sonar-scanner
+        RUN curl -sSLo /tmp/sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-6.2.1.4610-linux-x64.zip \
+            && unzip /tmp/sonar-scanner.zip -d /opt/ \
+            && mv /opt/sonar-scanner-6.2.1.4610-linux-x64 /opt/sonar-scanner \
+            && ln -s /opt/sonar-scanner/bin/sonar-scanner /usr/local/bin/sonar-scanner \
+            && rm /tmp/sonar-scanner.zip
+
         RUN usermod -aG docker jenkins
     ports:
       - 9080:8080
@@ -42,6 +49,36 @@ services:
       - jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
     restart: always
+    depends_on:
+      - sonarqube
+
+  sonarqube:
+    image: sonarqube:community
+    hostname: sonarqube
+    ports:
+      - 9000:9000
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonar-db:5432/sonar
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: sonar
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_logs:/opt/sonarqube/logs
+    depends_on:
+      - sonar-db
+
+  sonar-db:
+    image: postgres:17
+    hostname: sonar-db
+    environment:
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: sonar
+      POSTGRES_DB: sonar
+    volumes:
+      - sonar_db_data:/var/lib/postgresql/data
 
 volumes:
   jenkins_home:
+  sonarqube_data:
+  sonarqube_logs:
+  sonar_db_data:
