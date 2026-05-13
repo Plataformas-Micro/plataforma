@@ -70,10 +70,13 @@ services:
       DATABASE_DB: ${DB_NAME:-store}
       DATABASE_USERNAME: ${DB_USER:-store}
       DATABASE_PASSWORD: ${DB_PASSWORD:-devpass}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     deploy:
       replicas: 1
     depends_on:
       - db
+      - redis
 
   exchange-service:
     build:
