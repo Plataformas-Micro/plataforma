@@ -39,6 +39,9 @@ services:
     ports:
       - 9080:8080
     volumes:
-      - ${CONFIG:-./config}/jenkins:/var/jenkins_home
+      - jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
     restart: always
+
+volumes:
+  jenkins_home:
