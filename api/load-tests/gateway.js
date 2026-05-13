@@ -21,7 +21,7 @@ export const options = {
 };
 
 export default function () {
-  const res = http.get(`${BASE_URL}/gateway/actuator/health`);
+  const res = http.get(`${BASE_URL}/health-check`);
 
   check(res, {
     'status 200': (r) => r.status === 200,
