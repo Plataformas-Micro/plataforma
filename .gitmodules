@@ -22,3 +22,9 @@
 [submodule "api/product-service"]
 	path = api/product-service
 	url = git@github.com:Plataformas-Micro/product-service.git
+[submodule "api/exchange"]
+	path = api/exchange
+	url = git@github.com:Plataformas-Micro/exchange.git
+[submodule "api/exchange-service"]
+	path = api/exchange-service
+	url = git@github.com:Plataformas-Micro/exchange-service.git
