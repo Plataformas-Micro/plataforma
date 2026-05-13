@@ -16,3 +16,9 @@
 [submodule "api/auth-service"]
 	path = api/auth-service
 	url = git@github.com:Plataformas-Micro/auth-service.git
+[submodule "api/product"]
+	path = api/product
+	url = git@github.com:Plataformas-Micro/product.git
+[submodule "api/product-service"]
+	path = api/product-service
+	url = git@github.com:Plataformas-Micro/product-service.git
