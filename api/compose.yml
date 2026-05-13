@@ -15,6 +15,15 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-devpass}
       POSTGRES_DB: ${DB_NAME:-store}
 
+  redis:
+    image: redis:7-alpine
+    hostname: redis
+    ports:
+      - 6379:6379
+    volumes:
+      - redis_data:/data
+    command: --appendonly yes
+
   account:
     build:
       context: ./account-service
@@ -26,10 +35,13 @@ services:
       DATABASE_DB: ${DB_NAME:-store}
       DATABASE_USERNAME: ${DB_USER:-store}
       DATABASE_PASSWORD: ${DB_PASSWORD:-devpass}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     deploy:
       replicas: 1
     depends_on:
       - db
+      - redis
 
   auth:
     build:
@@ -41,8 +53,11 @@ services:
     environment:
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-jYCiN0YPiaBP53bGJi/kjfw79HW7xnBu9UPoD/QFFAE=}
       JWT_HTTP_ONLY: ${JWT_HTTP_ONLY:-true}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     depends_on:
       - account
+      - redis
 
   product:
     build:
@@ -105,3 +120,6 @@ services:
     volumes:
       - ${SETUP}/grafana:/var/lib/grafana
       - ${SETUP}/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+
+volumes:
+  redis_data:
