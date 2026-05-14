@@ -1,0 +1,67 @@
+site_name: PMA — Plataformas Micro — Grupo 10
+site_url: https://plataformas-micro.github.io/plataforma/
+repo_url: https://github.com/Plataformas-Micro/plataforma
+repo_name: Plataformas-Micro/plataforma
+
+theme:
+  name: material
+  language: pt
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Modo escuro
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Modo claro
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.breadcrumbs
+    - content.code.copy
+    - content.code.annotate
+    - search.suggest
+    - search.highlight
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - Exercícios:
+    - Product API: exercicios/product.md
+    - Exchange API: exercicios/exchange.md
+  - Projeto:
+    - Jenkins CI/CD: projeto/jenkins.md
+    - Bottlenecks: projeto/bottlenecks.md
+    - AWS & EKS: projeto/aws.md
+    - Load Testing: projeto/load-testing.md
+  - Referências: referencias.md
