@@ -7,7 +7,7 @@ services:
     image: postgres:17
     hostname: db
     ports:
-      - 5432:5432
+      - 5434:5432
     volumes:
       - ${VOLUME_DB}:/var/lib/postgresql/data
     environment:
@@ -85,6 +85,23 @@ services:
     hostname: exchange-service
     deploy:
       replicas: 1
+
+  order:
+    build:
+      context: ./order-service
+      dockerfile: Dockerfile
+    hostname: order
+    environment:
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_DB: ${DB_NAME:-store}
+      DATABASE_USERNAME: ${DB_USER:-store}
+      DATABASE_PASSWORD: ${DB_PASSWORD:-devpass}
+    deploy:
+      replicas: 1
+    depends_on:
+      - db
+      - exchange-service
 
   nginx:
     image: nginx:latest

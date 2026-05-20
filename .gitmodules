@@ -28,3 +28,9 @@
 [submodule "api/exchange-service"]
 	path = api/exchange-service
 	url = git@github.com:Plataformas-Micro/exchange-service.git
+[submodule "api/order"]
+	path = api/order
+	url = https://github.com/Plataformas-Micro/order.git
+[submodule "api/order-service"]
+	path = api/order-service
+	url = https://github.com/Plataformas-Micro/order-service.git
