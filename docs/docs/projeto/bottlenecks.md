@@ -156,7 +156,303 @@ spec:
 
 ---
 
-## 4. Autenticação com JWT
+## 4. Snapshot imutável de preço (order-service) — *individual: Mateus Porto*
+
+### Problema
+
+Pedidos referenciam produtos, mas **preços de produto mudam ao longo do tempo** (promoções, reajustes, correções). Se o `order-service` apenas armazenasse `idProduct` + `quantity` e buscasse o preço no `product-service` toda vez que o pedido fosse consultado, o histórico seria reescrito a cada mudança de preço: um pedido fechado por R$10 viraria R$15 no extrato do cliente quando o admin reajustasse o produto. Pior: se o produto fosse excluído, o pedido inteiro quebraria (500 ou item órfão).
+
+Esse é um gargalo de **consistência temporal**, não de performance — mas tem impacto direto em integridade financeira e auditabilidade.
+
+### Comparação visual: o problema
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as 👤 Usuário
+    participant O as order-service
+    participant P as product-service
+    participant DB as DB
+
+    Note over U,DB: 📅 1º de janeiro — preço $10
+
+    U->>O: POST /orders {idProduct: ABC, qty: 2}
+    O->>P: GET /products/ABC
+    P-->>O: {price: $10}
+    O->>DB: salva apenas {idProduct, qty}
+
+    Note over U,DB: 📅 1º de março — admin reajusta para $15
+    Note over P: products.products<br/>UPDATE price = 15
+
+    U->>O: GET /orders/{id}
+    O->>DB: SELECT items
+    DB-->>O: idProduct: ABC, qty: 2
+    O->>P: GET /products/ABC
+    P-->>O: {price: $15} ❌ mudou!
+    O-->>U: total = $30 ⚠ (esperado $20)
+```
+
+### Solução
+
+No momento da criação do pedido, o `order-service` resolve o produto via `ProductController.findById()` (Feign) e **copia `price` e calcula `total`** para dentro da tabela `orders.order_items`, junto com `idProduct` e `quantity`. Todos os valores são armazenados em USD (moeda canônica da plataforma).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as 👤 Usuário
+    participant O as order-service
+    participant P as product-service
+    participant DB as DB
+
+    Note over U,DB: 📅 1º de janeiro — preço $10
+
+    U->>O: POST /orders {idProduct: ABC, qty: 2}
+    O->>P: GET /products/ABC
+    P-->>O: {price: $10}
+    Note over O: 📸 snapshot:<br/>price=10, total=20
+    O->>DB: salva {idProduct, qty, price=10, total=20}
+
+    Note over U,DB: 📅 1º de março — admin reajusta para $15
+
+    U->>O: GET /orders/{id}
+    O->>DB: SELECT items
+    DB-->>O: {idProduct, qty, price=10, total=20}
+    Note over O: ⚠ não chama product-service!
+    O-->>U: total = $20 ✓ (correto e imutável)
+```
+
+### Modelagem
+
+```mermaid
+erDiagram
+    ORDER_ITEMS {
+        VARCHAR id PK
+        VARCHAR order_id FK
+        VARCHAR id_product "FK lógica (não enforced)"
+        NUMERIC price "🔒 snapshot USD"
+        INTEGER quantity
+        NUMERIC total "🔒 snapshot USD"
+    }
+```
+
+```sql title="V2026.05.13.002__create_tables.sql"
+CREATE TABLE orders.order_items (
+    id         VARCHAR(36)    NOT NULL PRIMARY KEY,
+    order_id   VARCHAR(36)    REFERENCES orders.orders(id),
+    id_product VARCHAR(36)    NOT NULL,
+    price      NUMERIC(10, 2) NOT NULL,  -- snapshot em USD
+    quantity   INTEGER        NOT NULL,
+    total      NUMERIC(10, 2) NOT NULL   -- price * quantity, em USD
+);
+```
+
+```java title="OrderService.create()"
+ProductOut product = productController.findById(itemIn.idProduct()).getBody();
+BigDecimal total = product.price().multiply(BigDecimal.valueOf(itemIn.quantity()));
+return OrderItem.builder()
+    .idProduct(itemIn.idProduct())
+    .price(product.price())   // ← snapshot congelado
+    .quantity(itemIn.quantity())
+    .total(total)
+    .build();
+```
+
+### Impacto
+
+| Cenário | 🔴 Sem snapshot | 🟢 Com snapshot |
+|---|---|---|
+| Admin reajusta preço amanhã | Pedido de ontem muda de valor | Pedido de ontem permanece intacto |
+| Produto é deletado | `GET /orders/{id}` quebra (500) | Pedido íntegro, `idProduct` apenas órfão |
+| Conversão de moeda no GET | Refaz Feign + recalcula | Lê `price` local, multiplica pela taxa |
+| Leituras subsequentes | N requests Feign sobre rede | 1 query SQL local |
+| Auditoria contábil | Impossível reconstituir | Histórico fiel à transação |
+
+```mermaid
+quadrantChart
+    title Comparação: armazenamento vs resiliência
+    x-axis Mais bytes no banco --> Menos bytes
+    y-axis Frágil --> Resiliente
+    quadrant-1 Ideal
+    quadrant-2 Otimizado mas frágil
+    quadrant-3 Inviável
+    quadrant-4 Robusto mas custoso
+    Snapshot (escolhido): [0.30, 0.85]
+    Referência pura: [0.85, 0.20]
+    Cache em memória: [0.55, 0.50]
+    Event sourcing: [0.15, 0.95]
+```
+
+Adicionalmente, a captura defensiva `catch (FeignException e)` no `OrderService.create()` mapeia **qualquer falha** do `product-service` (404, 500 por bug de cache, timeout) para um `400 Bad Request` consistente — bug no serviço externo não derruba o `order-service`.
+
+---
+
+## 5. Conversão de moeda sob demanda via OpenFeign (order-service) — *individual: Mateus Porto*
+
+### Problema
+
+O pedido precisa ser exibido tanto em USD (moeda canônica) quanto em moedas locais (BRL, EUR…). Duas abordagens ingênuas:
+
+1. **Armazenar todas as moedas no banco**: explode a tabela, exige sincronização das taxas a cada gravação, dados rapidamente desatualizados.
+2. **Recalcular tudo no front-end**: vaza a lógica financeira pro cliente, cada cliente teria uma versão da taxa, sem auditoria central.
+
+Ambas misturam preocupações: o pedido (entidade transacional) ficaria acoplado ao câmbio (taxa volátil).
+
+### Comparação visual: 3 estratégias
+
+```mermaid
+flowchart TB
+    subgraph A["❌ Estratégia 1: armazenar todas moedas"]
+        A1[POST /orders] --> A2[busca taxas USD/EUR/BRL/GBP/JPY]
+        A2 --> A3[escreve 5 colunas no banco]
+        A3 --> A4[GET retorna a coluna pré-calculada]
+        A4 --> A5[⚠ taxas envelhecidas<br/>⚠ tabela infla]
+    end
+    subgraph B["❌ Estratégia 2: front-end converte"]
+        B1[POST /orders] --> B2[salva apenas USD]
+        B2 --> B3[GET retorna USD]
+        B3 --> B4[browser busca taxa<br/>e converte sozinho]
+        B4 --> B5[⚠ taxa por cliente<br/>⚠ sem auditoria]
+    end
+    subgraph C["✅ Estratégia 3: on-demand server-side"]
+        C1[POST /orders] --> C2[salva apenas USD]
+        C2 --> C3{GET com currency?}
+        C3 -->|não| C4[retorna USD<br/>0 calls]
+        C3 -->|sim| C5[Feign exchange-service]
+        C5 --> C6[multiplica e retorna]
+        C6 --> C7[✓ taxa central<br/>✓ tabela limpa]
+    end
+
+    style A fill:#ffebee,stroke:#c62828
+    style B fill:#ffebee,stroke:#c62828
+    style C fill:#e8f5e9,stroke:#2e7d32
+```
+
+### Solução
+
+Conversão **on-demand** via OpenFeign, acionada apenas quando o cliente passa `?currency=` no GET. A escrita do pedido permanece simples (só USD); a leitura customiza a moeda usando o `exchange-service` como fonte canônica de taxas.
+
+### Fluxo da decisão
+
+```mermaid
+stateDiagram-v2
+    [*] --> Recebido: GET /orders/&#123;id&#125;
+    Recebido --> ChecaCurrency: param 'currency'
+    ChecaCurrency --> RetornaUSD: null OU "USD"
+    ChecaCurrency --> ChamaExchange: outra moeda
+
+    ChamaExchange --> ParseTaxa: 200 OK
+    ChamaExchange --> Erro422: FeignException OU sell=null
+
+    ParseTaxa --> Multiplica: rate = sell
+    Multiplica --> RetornaConv: items[].total *= rate<br/>order.total *= rate
+
+    RetornaUSD --> [*]: 200 OK em USD
+    RetornaConv --> [*]: 200 OK em &#123;currency&#125;
+    Erro422 --> [*]: 422 Unprocessable
+
+    note left of RetornaUSD
+        Caminho padrão:
+        zero overhead
+        zero I/O extra
+    end note
+
+    note right of Erro422
+        422 = request bem-formado
+        valor não processável
+    end note
+```
+
+```java title="OrderController (Feign interface)"
+@GetMapping("/orders/{id}")
+ResponseEntity<OrderOut> findById(
+    @PathVariable String id,
+    @RequestParam(value = "currency", required = false) String currency,
+    @RequestHeader("id-account") String idAccount
+);
+```
+
+```java title="OrderService.resolveRate()"
+public BigDecimal resolveRate(String currency, String idAccount) {
+    if (currency == null || currency.equalsIgnoreCase("USD")) {
+        return null; // (1)!
+    }
+    try {
+        ExchangeOut rate = exchangeController
+            .getRate("USD", currency.toUpperCase(), idAccount).getBody();
+        if (rate == null || rate.sell() == null) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, // (2)!
+                "Unsupported currency: " + currency);
+        }
+        return BigDecimal.valueOf(rate.sell());
+    } catch (FeignException e) {
+        throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+            "Unsupported currency: " + currency);
+    }
+}
+```
+
+1. **Short-circuit**: USD ou ausente → não chama o `exchange-service`. Zero overhead pro caminho padrão.
+2. **422 Unprocessable Entity**: moeda inválida ou indisponível tem semântica HTTP correta (request bem-formado, mas valor não processável).
+
+O `OrderParser.to()` aplica a multiplicação apenas se a taxa é não-nula:
+
+```java
+BigDecimal total = rate == null ? i.total() : i.total().multiply(rate);
+```
+
+E o `OrderApplication` precisou ser explícito sobre **quais pacotes** o Spring Cloud OpenFeign deve escanear, porque a interface `OrderController` da lib `order` tem `@FeignClient` mas também é implementada localmente por `OrderResource`:
+
+```java
+@SpringBootApplication
+@EnableFeignClients(basePackages = { "store.product", "store.exchange" })
+public class OrderApplication { ... }
+```
+
+Sem essa restrição, o Spring criaria dois beans concorrentes (cliente Feign + controller REST) para a mesma interface e o boot quebraria.
+
+### Impacto
+
+| Métrica | 🔴 Sem on-demand | 🟢 Com on-demand |
+|---|---|---|
+| Latência `POST /orders` | inclui chamada ao exchange | só product (necessário) |
+| Latência `GET` em USD (caso comum) | igual ao em BRL | zero overhead |
+| Custo de manutenção de taxas | escrita guarda taxa congelada | leitura busca taxa atual |
+| Acoplamento order ↔ exchange | escrita acoplada | só na leitura, por query param |
+| Resiliência a queda do exchange | qualquer pedido falha | só rotas com `?currency=` falham |
+
+### Quem chama quem — escopo dos Feign clients
+
+```mermaid
+flowchart LR
+    subgraph App["@SpringBootApplication"]
+        Anno["@EnableFeignClients<br/>basePackages = {<br/>  'store.product',<br/>  'store.exchange'<br/>}"]
+    end
+    subgraph LibProd["lib store:product"]
+        PC[ProductController<br/>@FeignClient]
+    end
+    subgraph LibEx["lib store:exchange"]
+        EC[ExchangeController<br/>@FeignClient]
+    end
+    subgraph LibOrd["lib store:order"]
+        OC[OrderController<br/>@FeignClient<br/>+ implementada por<br/>OrderResource]
+    end
+
+    Anno -.->|escaneia| PC
+    Anno -.->|escaneia| EC
+    Anno -.x|NÃO escaneia<br/>'store.order'| OC
+
+    style Anno fill:#bbdefb,stroke:#1565c0
+    style PC fill:#c8e6c9,stroke:#2e7d32
+    style EC fill:#c8e6c9,stroke:#2e7d32
+    style OC fill:#ffcdd2,stroke:#c62828
+```
+
+!!! warning "Por que `basePackages` precisa ser explícito?"
+    A interface `OrderController` da lib `order` carrega `@FeignClient` (para que outros serviços possam consumi-la). Ao mesmo tempo, `OrderResource` no `order-service` *implementa* essa mesma interface como `@RestController`. Se o scan incluísse `store.order`, o Spring tentaria criar **dois beans concorrentes** para o mesmo tipo e o boot quebraria. Restringir aos pacotes externos resolve o conflito.
+
+---
+
+## 6. Autenticação com JWT
 
 ### Problema
 

@@ -13,6 +13,9 @@
 | [product-service](https://github.com/Plataformas-Micro/product-service) | CRUD de produtos com cache Redis |
 | [product](https://github.com/Plataformas-Micro/product) | Biblioteca compartilhada — interfaces e modelos de product |
 | [exchange-service](https://github.com/Plataformas-Micro/exchange-service) | Serviço de câmbio em Python/FastAPI |
+| [exchange](https://github.com/Plataformas-Micro/exchange) | Biblioteca compartilhada — interfaces e modelos de exchange |
+| [order-service](https://github.com/Plataformas-Micro/order-service) | Microsserviço de pedidos com snapshot de preço e conversão de moeda via Feign |
+| [order](https://github.com/Plataformas-Micro/order) | Biblioteca compartilhada — interfaces e modelos de order |
 
 ---
 

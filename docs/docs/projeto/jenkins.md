@@ -169,6 +169,7 @@ stage('Deploy to EKS') {
 | account-service | `account` | `account` |
 | product-service | `product` | `product` |
 | exchange-service | — (Python) | `exchange-service` |
+| order-service | `order` (também precisa de `product` e `exchange` no Maven local) | `order` |
 
 !!! info "exchange-service"
     O `exchange-service` é escrito em Python/FastAPI, portanto não tem os estágios de **Dependencies** e **Build** — apenas SCM, Push e Deploy.
