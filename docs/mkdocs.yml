@@ -59,6 +59,7 @@ nav:
   - Exercícios:
     - Product API: exercicios/product.md
     - Exchange API: exercicios/exchange.md
+    - Order API: exercicios/order.md
   - Projeto:
     - Jenkins CI/CD: projeto/jenkins.md
     - Bottlenecks: projeto/bottlenecks.md
