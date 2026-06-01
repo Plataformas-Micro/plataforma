@@ -4,7 +4,7 @@ import { Rate } from 'k6/metrics';
 
 const errorRate = new Rate('errors');
 
-const BASE_URL = 'http://a4ae593b8e0d047f0900658b38b95f7a-354320350.us-east-1.elb.amazonaws.com:8080';
+const BASE_URL = __ENV.BASE_URL || 'http://a4ae593b8e0d047f0900658b38b95f7a-354320350.us-east-1.elb.amazonaws.com:8080';
 
 const HEADERS = {
   'Content-Type': 'application/json',
