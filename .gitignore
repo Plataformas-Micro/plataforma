@@ -214,3 +214,5 @@ config/
 .cursorindexingignore
 .cursorignore
 .cursorindexingignore
+# MkDocs build output
+docs/site/
