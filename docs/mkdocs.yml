@@ -56,13 +56,17 @@ plugins:
 
 nav:
   - Home: index.md
-  - Exercícios:
-    - Product API: exercicios/product.md
-    - Exchange API: exercicios/exchange.md
-    - Order API: exercicios/order.md
-  - Projeto:
-    - Jenkins CI/CD: projeto/jenkins.md
-    - Bottlenecks: projeto/bottlenecks.md
-    - AWS & EKS: projeto/aws.md
-    - Load Testing: projeto/load-testing.md
+  - Arquitetura: arquitetura.md
+  - Microsserviços:
+    - Product API: servicos/product.md
+    - Order API: servicos/order.md
+    - Exchange API: servicos/exchange.md
+  - Infraestrutura:
+    - AWS: infra/aws.md
+    - EKS: infra/eks.md
+    - CI/CD: infra/cicd.md
+  - Testes de Carga: testes-de-carga.md
+  - Bottlenecks: bottlenecks.md
+  - Custos & SLA: custos.md
+  - PaaS: paas.md
   - Referências: referencias.md
